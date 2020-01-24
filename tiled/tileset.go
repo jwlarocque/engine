@@ -49,7 +49,7 @@ func newTSXFromFile(filePath string) tilesetXML {
 // ----------------
 
 type Tileset struct {
-	TilesImage *ebiten.Image
+	tilesImage *ebiten.Image
 	tileWidth  int
 	tileHeight int
 	numTiles   int
@@ -68,7 +68,8 @@ func NewTilesetFromFile(filePath string) *Tileset {
 
 	// TODO: reduce repeated code
 	var err error
-	tileset.TilesImage, _, err = ebitenutil.NewImageFromFile(tsx.Images[0].FilePath, ebiten.FilterDefault)
+	// TODO: construct file paths relative to .tsx file instead of this file
+	tileset.tilesImage, _, err = ebitenutil.NewImageFromFile(tsx.Images[0].FilePath, ebiten.FilterDefault)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -102,5 +103,5 @@ func NewTilesetFromFile(filePath string) *Tileset {
 func (ts Tileset) GetTileImage(localTileID int) *ebiten.Image {
 	subX := (localTileID % ts.numCols) * ts.tileWidth
 	subY := (localTileID / ts.numCols) * ts.tileHeight
-	return ts.TilesImage.SubImage(image.Rect(subX, subY, subX+ts.tileWidth, subY+ts.tileWidth)).(*ebiten.Image)
+	return ts.tilesImage.SubImage(image.Rect(subX, subY, subX+ts.tileWidth, subY+ts.tileWidth)).(*ebiten.Image)
 }
