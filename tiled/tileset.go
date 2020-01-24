@@ -3,6 +3,7 @@ package tiled
 import (
 	"encoding/xml"
 	"fmt"
+	"image"
 	"io/ioutil"
 	"log"
 	"os"
@@ -90,4 +91,16 @@ func NewTilesetFromFile(filePath string) *Tileset {
 	}
 
 	return &tileset
+}
+
+// GetTileImage takes a tile ID and returns the corresponding ebiten.Image
+// from its tileset
+// !!! NOTE: the global tile ID in a .tmx file and local ID used by the
+//           tileset are generally not the same.  It is up to you to do
+//           the conversion. !!!
+// TODO: consider returning render opts? (would probably require global ID)
+func (ts Tileset) GetTileImage(localTileID int) *ebiten.Image {
+	subX := (localTileID % ts.numCols) * ts.tileWidth
+	subY := (localTileID / ts.numCols) * ts.tileHeight
+	return ts.TilesImage.SubImage(image.Rect(subX, subY, subX+ts.tileWidth, subY+ts.tileWidth)).(*ebiten.Image)
 }
