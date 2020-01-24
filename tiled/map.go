@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -72,18 +73,30 @@ func parseIntCSV(csv string) []uint32 {
 	return ints
 }
 
+// TODO: clean this up
 func getTileImageAndOpts(newMap *Map, tileNum int) (*ebiten.Image, *ebiten.DrawImageOptions) {
 	tileID := newMap.tileData[tileNum]
 	opts := &ebiten.DrawImageOptions{}
-	opts.GeoM.Translate(float64((tileNum%newMap.width)*newMap.Tileset.tileWidth), float64((tileNum/newMap.width)*newMap.Tileset.tileHeight))
 
 	// look mom, I'm using bitwise operators
-	localID := (tileID & 0x1FFFFFFF) + 1
+	localID := (tileID & 0x1FFFFFFF) - 1
 	flipHoriz := (tileID & 0x80000000) > 0
 	flipVert := (tileID & 0x40000000) > 0
 	flipDiag := (tileID & 0x20000000) > 0
 	(fmt.Sprintf("ID: %d, H: %t, V: %t, D: %t", localID, flipHoriz, flipVert, flipDiag)) // TODO: remove this
 	img := newMap.Tileset.GetTileImage(int(localID))
+	opts.GeoM.Translate(-float64(newMap.Tileset.tileWidth)/2, -float64(newMap.Tileset.tileHeight)/2)
+	if flipHoriz {
+		opts.GeoM.Scale(-1, 1)
+	}
+	if flipVert {
+		opts.GeoM.Scale(1, -1)
+	}
+	if flipDiag {
+		opts.GeoM.Rotate(0.5 * math.Pi) // TODO: use a more intelligent matrix transform instead of this naive rotation
+	}
+	opts.GeoM.Translate(float64((tileNum%newMap.width)*newMap.Tileset.tileWidth), float64((tileNum/newMap.width)*newMap.Tileset.tileHeight))
+	opts.GeoM.Translate(float64(newMap.Tileset.tileWidth)/2, float64(newMap.Tileset.tileHeight)/2)
 	return img, opts
 }
 
