@@ -1,9 +1,17 @@
+/* TODO: Convert to interface
+ *       Add point, circle, rect, etc. colliders with optimized detection
+ *       Consider removing center (of bounding box) - it's currently unused.
+ */
+
 package engine
 
 import (
 	"fmt"
 )
 
+// Collider has Vertices and an Entity to keep track of its position in the level.
+// It can determine whether it is intersecting/overlapping with another Collider.
+// Note: Vertices must form a convex polygon (do not repeat first/last vertex).
 type Collider struct {
 	Vertices             []*Vector2
 	center               Vector2 // middle of bounding box
@@ -12,9 +20,9 @@ type Collider struct {
 }
 
 // isConvex returns whether the given vertices form a convex polygon
-// do not repeat first vertex
 // does not handle wack polygons (e.g. self-intersecting)
 // FIXME: handle case where two adjacent segments are parallel (i.e., Cross ~= 0) (should always pass)
+// FIXME: I don't know how Collides will handle colliders with fewer than 4 vertices
 func isConvex(vertices []*Vector2) bool {
 	// triangles, "lines," and "points" are convex
 	if len(vertices) <= 3 {
@@ -26,7 +34,7 @@ func isConvex(vertices []*Vector2) bool {
 	v2 := vertices[0].Sub(*vertices[len(vertices)-1])
 	positive := v1.Cross(v2) > 0
 
-	// check that sign of all crossZ of adjacent vectors matches baseline
+	// check that sign of all Cross of adjacent vectors matches baseline
 	for i := 0; i < len(vertices)-1; i++ {
 		v1 = v2
 		v2 = vertices[i+1].Sub(*vertices[i])
@@ -37,6 +45,7 @@ func isConvex(vertices []*Vector2) bool {
 	return true
 }
 
+// ErrNotConvex is returned by NewCollider when the provided vertices are not convex
 type ErrNotConvex struct {
 	ErrStr   string
 	Vertices []*Vector2
@@ -46,6 +55,7 @@ func (e *ErrNotConvex) Error() string {
 	return fmt.Sprintf("%s : %v", e.ErrStr, e.Vertices)
 }
 
+// NewCollider constructs a new Collider from the provided vertices
 func NewCollider(vertices []*Vector2) (*Collider, error) {
 	if !isConvex(vertices) {
 		return nil, &ErrNotConvex{"Collider vertices were not convex.", vertices}
@@ -53,6 +63,7 @@ func NewCollider(vertices []*Vector2) (*Collider, error) {
 	coll := Collider{}
 	coll.Vertices = vertices
 
+	// find bounding box
 	coll.boundSmall = *vertices[0]
 	coll.boundBig = *vertices[0]
 	for i := 1; i < len(vertices); i++ {
@@ -68,12 +79,13 @@ func NewCollider(vertices []*Vector2) (*Collider, error) {
 		}
 	}
 
+	// find center of bounding box
 	coll.center = coll.boundSmall.Add((coll.boundBig.Sub(coll.boundSmall)).Scale(0.5))
-
 	return &coll, nil
 }
 
-// GetVertexPos returns the position of the vertex at i plus the collider's position
+// GetVertexPos returns the position of the vertex at i (% len(vertices))
+// plus the Collider's position
 func (c *Collider) GetVertexPos(i int) Vector2 {
 	return c.Vertices[i%len(c.Vertices)].Add(c.Position)
 }
@@ -82,6 +94,7 @@ func (c *Collider) String() string {
 	return fmt.Sprintf("Collider with center: %v, Bounds: (%v, %v), Vertices: %v", c.center, c.boundSmall, c.boundBig, c.Vertices)
 }
 
+// checks for bounding box collision
 func (c *Collider) bBoxCollides(other *Collider) bool {
 	// TODO: this is dumb, write cleaner way
 	cS := c.boundSmall.Add(c.Position)
@@ -94,11 +107,16 @@ func (c *Collider) bBoxCollides(other *Collider) bool {
 	return true
 }
 
+// check for polygon collision with separating axis theorem
+// idea: https://www.sevenson.com.au/actionscript/sat/
+// TODO: Only checks edges of c as separating line, so must
+//       && with other.satCollides(c) - combine into single call
 func (c *Collider) satCollides(other *Collider) bool {
 	// check each side of this Collider (c)
 	var axis Vector2
 	var current, cMin, cMax, otherMin, otherMax float64
 	for i := 0; i < len(c.Vertices); i++ {
+		// axis is ortho to a side of c
 		axis = c.GetVertexPos(i).Sub(c.GetVertexPos(i + 1)).Orthogonal()
 		// find projection/"shadow" of c onto axis
 		cMin = c.GetVertexPos(0).ProjectOntoMagnitude(axis)
