@@ -59,7 +59,7 @@ func NewAnimationFromFolder(path string, frameDuration time.Duration) *Animation
 	return &a
 }
 
-// == Animation ================
+// == Static Sprite ================
 
 type Sprite struct {
 	Mirrors int

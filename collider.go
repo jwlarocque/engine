@@ -16,7 +16,7 @@ type Collider struct {
 	Vertices             []*Vector2
 	center               Vector2 // middle of bounding box
 	boundSmall, boundBig Vector2 // bounding box
-	Entity
+	Situation
 }
 
 // isConvex returns whether the given vertices form a convex polygon
