@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -96,7 +95,7 @@ func getTileImageAndOpts(newMap *Map, tileNum int) (*ebiten.Image, *ebiten.DrawI
 		opts.GeoM.Scale(1, -1)
 	}
 	if flipDiag {
-		opts.GeoM.Rotate(0.5 * math.Pi) // TODO: use a more intelligent matrix transform instead of this naive rotation
+		opts.GeoM.Scale(-1, -1)
 	}
 	opts.GeoM.Translate(float64((tileNum%newMap.width)*newMap.Tileset.tileWidth), float64((tileNum/newMap.width)*newMap.Tileset.tileHeight))
 	opts.GeoM.Translate(float64(newMap.Tileset.tileWidth)/2, float64(newMap.Tileset.tileHeight)/2)
