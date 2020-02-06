@@ -48,6 +48,9 @@ func newTMXFromFile(filePath string) mapXML {
 	return mapRaw
 }
 
+//
+// == Map ========
+
 // TODO: maybe Map can be just ebiten.Image
 // (discard tileset etc. after running the constructor)
 type Map struct {

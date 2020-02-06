@@ -3,27 +3,30 @@
  *       Consider removing center (of bounding box) - it's currently unused.
  */
 
-package engine
+package mechanism
 
 import (
 	"fmt"
+
+	"github.com/jwlarocque/engine/r2"
 )
 
 // Collider has Vertices and an Entity to keep track of its position in the level.
 // It can determine whether it is intersecting/overlapping with another Collider.
 // Note: Vertices must form a convex polygon (do not repeat first/last vertex).
 type Collider struct {
-	Vertices             []*Vector2
-	center               Vector2 // middle of bounding box
-	boundSmall, boundBig Vector2 // bounding box
-	Situation
+	Vertices             []*r2.Vector
+	center               r2.Vector // middle of bounding box
+	boundSmall, boundBig r2.Vector // bounding box
+	Position             r2.Vector
+	Velocity             r2.Vector
 }
 
 // isConvex returns whether the given vertices form a convex polygon
 // does not handle wack polygons (e.g. self-intersecting)
 // FIXME: handle case where two adjacent segments are parallel (i.e., Cross ~= 0) (should always pass)
 // FIXME: I don't know how Collides will handle colliders with fewer than 4 vertices
-func isConvex(vertices []*Vector2) bool {
+func isConvex(vertices []*r2.Vector) bool {
 	// triangles, "lines," and "points" are convex
 	if len(vertices) <= 3 {
 		return true
@@ -48,7 +51,7 @@ func isConvex(vertices []*Vector2) bool {
 // ErrNotConvex is returned by NewCollider when the provided vertices are not convex
 type ErrNotConvex struct {
 	ErrStr   string
-	Vertices []*Vector2
+	Vertices []*r2.Vector
 }
 
 func (e *ErrNotConvex) Error() string {
@@ -56,7 +59,7 @@ func (e *ErrNotConvex) Error() string {
 }
 
 // NewCollider constructs a new Collider from the provided vertices
-func NewCollider(vertices []*Vector2) (*Collider, error) {
+func NewCollider(vertices []*r2.Vector) (*Collider, error) {
 	if !isConvex(vertices) {
 		return nil, &ErrNotConvex{"Collider vertices were not convex.", vertices}
 	}
@@ -86,13 +89,26 @@ func NewCollider(vertices []*Vector2) (*Collider, error) {
 
 // GetVertexPos returns the position of the vertex at i (% len(vertices))
 // plus the Collider's position
-func (c *Collider) GetVertexPos(i int) Vector2 {
+func (c *Collider) GetVertexPos(i int) r2.Vector {
 	return c.Vertices[i%len(c.Vertices)].Add(c.Position)
 }
 
 func (c *Collider) String() string {
 	return fmt.Sprintf("Collider with center: %v, Bounds: (%v, %v), Vertices: %v", c.center, c.boundSmall, c.boundBig, c.Vertices)
 }
+
+//
+// == Time Blur ========
+
+// Blur "streches" a collider from its current position to its
+// position after time
+// !!! Creates a new collider.  Use sparingly. !!!
+func (c Collider) Blur(time float64) Collider {
+	return Collider{}
+}
+
+//
+// == Collision Detection ========
 
 // checks for bounding box collision
 func (c *Collider) bBoxCollides(other *Collider) bool {
@@ -113,7 +129,7 @@ func (c *Collider) bBoxCollides(other *Collider) bool {
 //       && with other.satCollides(c) - combine into single call
 func (c *Collider) satCollides(other *Collider) bool {
 	// check each side of this Collider (c)
-	var axis Vector2
+	var axis r2.Vector
 	var current, cMin, cMax, otherMin, otherMax float64
 	for i := 0; i < len(c.Vertices); i++ {
 		// axis is ortho to a side of c
@@ -159,4 +175,12 @@ func (c *Collider) Collides(other *Collider) bool {
 	// check for gaps with separating axis theorem
 	// note: satCollides only considers the axes of c, so just and the results together to consider both
 	return c.satCollides(other) && other.satCollides(c)
+}
+
+// WillCollide returns whether c and other _are_ colliding after timeSteps
+// assumes collider moves exactly velocity every time step (i.e., a time step is one unit of time)
+func (c Collider) WillCollide(other Collider, timeSteps int) bool {
+	c.Position.Add(c.Velocity)
+	other.Position.Add(other.Velocity)
+	return c.Collides(&other)
 }
