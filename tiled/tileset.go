@@ -1,6 +1,7 @@
 package tiled
 
 import (
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"image"
@@ -13,10 +14,67 @@ import (
 	"github.com/hajimehoshi/ebiten/ebitenutil"
 )
 
-// == TSX file parsing ================
+type Tileset struct {
+	tilesImage *ebiten.Image
+	tileWidth  int
+	tileHeight int
+	numTiles   int
+	numCols    int
+}
+
+// == JSON ========
+
+type tilesetJSON struct {
+	Name       string
+	Image      string
+	TileHeight int `json:"tileheight"`
+	TileWidth  int `json:"tilewidth"`
+	NumTiles   int `json:"tilecount"`
+	NumCols    int `json:"columns"`
+}
+
+func newTilesetJSONFromFile(filePath string) tilesetJSON {
+	jsonFile, err := os.Open(filePath)
+	if err != nil {
+		log.Println("err loading json tileset file")
+		log.Fatal(err)
+	}
+	bytes, _ := ioutil.ReadAll(jsonFile)
+
+	var tileset tilesetJSON
+	json.Unmarshal(bytes, &tileset)
+
+	defer jsonFile.Close()
+	return tileset
+}
+
+func NewTilesetFromJSON(filePath string) *Tileset {
+	tileset := Tileset{}
+
+	json := newTilesetJSONFromFile(filePath)
+
+	var err error
+	tileset.tilesImage, _, err = ebitenutil.NewImageFromFile(json.Image, ebiten.FilterDefault)
+	if err != nil {
+		log.Println(filePath)
+		log.Println(json.Name)
+		log.Println(json.Image)
+		log.Println("err loading tileset into ebiten image")
+		log.Fatal(err)
+	}
+
+	// ¯\_(ツ)_/¯
+	tileset.tileHeight = json.TileHeight
+	tileset.tileWidth = json.TileWidth
+	tileset.numTiles = json.NumTiles
+	tileset.numCols = json.NumCols
+
+	return &tileset
+}
+
+// == TSX ========
 
 type tilesetXML struct {
-	XMLName    xml.Name   `xml:"tileset"`
 	Images     []imageXML `xml:"image"`
 	TileWidth  string     `xml:"tilewidth,attr"`
 	TileHeight string     `xml:"tileheight,attr"`
@@ -35,29 +93,17 @@ func newTSXFromFile(filePath string) tilesetXML {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	bytes, _ := ioutil.ReadAll(tsxFile)
 
 	var tileset tilesetXML
 	xml.Unmarshal(bytes, &tileset)
 
 	defer tsxFile.Close()
-
 	return tileset
 }
 
-// ----------------
-
-type Tileset struct {
-	tilesImage *ebiten.Image
-	tileWidth  int
-	tileHeight int
-	numTiles   int
-	numCols    int
-}
-
-// NewTilesetFromFile creates a tileset from a .tsx file
-func NewTilesetFromFile(filePath string) *Tileset {
+// NewTilesetFromTSX creates a tileset from a .tsx file
+func NewTilesetFromTSX(filePath string) *Tileset {
 	tileset := Tileset{}
 
 	tsx := newTSXFromFile(filePath)
