@@ -8,34 +8,15 @@ import (
 
 // == Extra Matrix Transforms ========
 
-// FIXME: WIP: 90 degree rotation special case
-func RotatedQuarter(matrix ebiten.GeoM, time int) ebiten.GeoM {
+// RotatedQuarter returns matrix rotated 90 degrees counter-clockwise
+func RotatedQuarter(matrix ebiten.GeoM) ebiten.GeoM {
 	ret := ebiten.GeoM{}
-	a := matrix.Element(0, 0)
-	b := matrix.Element(0, 1)
-	c := matrix.Element(1, 0)
-	d := matrix.Element(1, 1)
-
-	//fmt.Printf("(%.2f, %.2f, %.2f, %.2f)", a, b, c, d)
-
-	// 90 degree rot
-	/*
-		ret.SetElement(0, 0, b)
-		ret.SetElement(0, 1, -1*a)
-		ret.SetElement(1, 0, d)
-		ret.SetElement(1, 1, -1*c)
-	*/
-
-	ret.SetElement(0, 0, -a)
-	ret.SetElement(0, 1, -b)
-	ret.SetElement(1, 0, -c)
-	ret.SetElement(1, 1, -d)
-
-	//fmt.Printf("(%.2f, %.2f, %.2f, %.2f)", b, -1*a, d, -1*c)
-	//fmt.Println("")
-
-	ret.SetElement(0, 2, matrix.Element(0, 2))
-	ret.SetElement(1, 2, matrix.Element(1, 2))
+	ret.SetElement(0, 0, -matrix.Element(1, 0))
+	ret.SetElement(0, 1, -matrix.Element(1, 1))
+	ret.SetElement(0, 2, -matrix.Element(1, 2))
+	ret.SetElement(1, 0, matrix.Element(0, 0))
+	ret.SetElement(1, 1, matrix.Element(0, 1))
+	ret.SetElement(1, 2, matrix.Element(0, 2))
 	return ret
 }
 
@@ -47,16 +28,20 @@ type Vector struct {
 	X, Y float64
 }
 
+func (v Vector) String() string {
+	return fmt.Sprintf("(%0.24f, %0.24f)", v.X, v.Y)
+}
+
+func (v Vector) XY() (float64, float64) {
+	return v.X, v.Y
+}
+
 func (v Vector) Magnitude() float64 {
 	return math.Sqrt(v.Dot(v))
 }
 
 func (v Vector) Angle() float64 {
 	return math.Atan2(v.X, v.Y)
-}
-
-func (v Vector) String() string {
-	return fmt.Sprintf("(%0.24f, %0.24f)", v.X, v.Y)
 }
 
 func (v Vector) ApproxEqual(other Vector) bool {

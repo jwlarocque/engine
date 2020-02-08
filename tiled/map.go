@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/hajimehoshi/ebiten"
+	"github.com/jwlarocque/engine/mechanism"
+	"github.com/jwlarocque/engine/r2"
 )
 
 // Tiled JSON Format: https://doc.mapeditor.org/en/stable/reference/json-map-format/
@@ -23,11 +24,16 @@ import (
 // TODO: maybe Map can be just ebiten.Image
 // (discard tileset etc. after running the constructor)
 type Map struct {
-	Image    *ebiten.Image
-	Tileset  *Tileset
-	tileData []uint32
-	width    int // map width in tiles
-	height   int // map height in tiles
+	Image            *ebiten.Image
+	Tileset          *Tileset
+	terrainColliders []*mechanism.Collider
+	tileData         []uint32
+	width            int // map width in tiles
+	height           int // map height in tiles
+}
+
+func getTilePos(m *Map, tileNum int) r2.Vector {
+	return r2.Vector{float64((tileNum % m.width) * m.Tileset.tileWidth), float64((tileNum / m.width) * m.Tileset.tileHeight)}
 }
 
 // TODO: clean this up
@@ -45,7 +51,7 @@ func getTileImageAndOpts(newMap *Map, tileNum int) (*ebiten.Image, *ebiten.DrawI
 	// apply tile flips/rotatoin
 	opts.GeoM.Translate(-float64(newMap.Tileset.tileWidth)/2, -float64(newMap.Tileset.tileHeight)/2)
 	if flipDiag {
-		opts.GeoM.Rotate(0.5 * math.Pi)
+		opts.GeoM = r2.RotatedQuarter(opts.GeoM)
 	}
 	if flipHoriz {
 		opts.GeoM.Scale(-1, 1)
@@ -54,11 +60,25 @@ func getTileImageAndOpts(newMap *Map, tileNum int) (*ebiten.Image, *ebiten.DrawI
 		opts.GeoM.Scale(1, -1)
 	}
 	// translate to position relative to rest of map
-	opts.GeoM.Translate(float64((tileNum%newMap.width)*newMap.Tileset.tileWidth), float64((tileNum/newMap.width)*newMap.Tileset.tileHeight))
+	opts.GeoM.Translate(getTilePos(newMap, tileNum).XY())
 	opts.GeoM.Translate(float64(newMap.Tileset.tileWidth)/2, float64(newMap.Tileset.tileHeight)/2)
 
 	img := newMap.Tileset.GetTileImage(int(localID))
 	return img, opts
+}
+
+func (m *Map) addCollidersFromTiledata() {
+	for i := 0; i < len(m.tileData); i++ {
+		localID := (m.tileData[i] & 0x1FFFFFFF) - 1
+		if localID > 0 {
+			coll, err := mechanism.NewCollider([]*r2.Vector{{0.0, 0.0}, {float64(m.Tileset.tileWidth), 0.0}, {float64(m.Tileset.tileWidth), float64(m.Tileset.tileHeight)}, {0.0, float64(m.Tileset.tileHeight)}})
+			if err != nil {
+				log.Fatal(err)
+			}
+			coll.Position = getTilePos(m, i)
+			m.terrainColliders = append(m.terrainColliders, coll)
+		}
+	}
 }
 
 // == JSON ========
