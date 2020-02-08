@@ -14,8 +14,12 @@ import (
 	"github.com/hajimehoshi/ebiten"
 )
 
-// TODO: reduce use of log.Fatal lol
+// Tiled JSON Format: https://doc.mapeditor.org/en/stable/reference/json-map-format/
+// Tiled TMX Format: https://doc.mapeditor.org/en/stable/reference/tmx-map-format/
+//
+// TODO: reduce use of log.Fatal
 
+// Map represents the data about a level which can be found in a Tiled file
 // TODO: maybe Map can be just ebiten.Image
 // (discard tileset etc. after running the constructor)
 type Map struct {
@@ -32,13 +36,13 @@ func getTileImageAndOpts(newMap *Map, tileNum int) (*ebiten.Image, *ebiten.DrawI
 	tileID := newMap.tileData[tileNum]
 	opts := &ebiten.DrawImageOptions{}
 
-	// look mom, I'm using bitwise operators
+	// bits 32, 31, and 30 store whether tiles are flipped
 	localID := (tileID & 0x1FFFFFFF) - 1 // TODO: use firstID/firstgid instead of hardcoding 1
 	flipHoriz := (tileID & 0x80000000) > 0
 	flipVert := (tileID & 0x40000000) > 0
 	flipDiag := (tileID & 0x20000000) > 0
-	(fmt.Sprintf("ID: %d, H: %t, V: %t, D: %t", localID, flipHoriz, flipVert, flipDiag)) // TODO: remove this
-	img := newMap.Tileset.GetTileImage(int(localID))
+
+	// apply tile flips/rotatoin
 	opts.GeoM.Translate(-float64(newMap.Tileset.tileWidth)/2, -float64(newMap.Tileset.tileHeight)/2)
 	if flipDiag {
 		opts.GeoM.Rotate(0.5 * math.Pi)
@@ -49,8 +53,11 @@ func getTileImageAndOpts(newMap *Map, tileNum int) (*ebiten.Image, *ebiten.DrawI
 	if flipVert {
 		opts.GeoM.Scale(1, -1)
 	}
+	// translate to position relative to rest of map
 	opts.GeoM.Translate(float64((tileNum%newMap.width)*newMap.Tileset.tileWidth), float64((tileNum/newMap.width)*newMap.Tileset.tileHeight))
 	opts.GeoM.Translate(float64(newMap.Tileset.tileWidth)/2, float64(newMap.Tileset.tileHeight)/2)
+
+	img := newMap.Tileset.GetTileImage(int(localID))
 	return img, opts
 }
 
@@ -72,7 +79,7 @@ type mapLayerJSON struct {
 	Data []uint32 // TODO: dunno if unmarshaling straight to uint32 slice will work
 }
 
-// NewJSONFromFile parses the given .json file into a mapJSON
+// newJSONFromFile parses the given .json file into a mapJSON
 func newMapJSONFromFile(filePath string) mapJSON {
 	jsonFile, err := os.Open(filePath)
 	if err != nil {
@@ -87,6 +94,7 @@ func newMapJSONFromFile(filePath string) mapJSON {
 	return mapRaw
 }
 
+// NewMapFromJSON returns a Map given a .json map file
 func NewMapFromJSON(filePath string) *Map {
 	var err error
 	newMap := Map{}
@@ -103,7 +111,7 @@ func NewMapFromJSON(filePath string) *Map {
 	if len(json.Layers) < 1 {
 		log.Fatal(fmt.Sprintf("map at %s had no layers (data)", filePath))
 	}
-	newMap.tileData = json.Layers[0].Data // TODO: make sure the json unmarshal actually provides the type we need here
+	newMap.tileData = json.Layers[0].Data
 
 	newMap.Image, err = ebiten.NewImage(newMap.width*newMap.Tileset.tileWidth, newMap.height*newMap.Tileset.tileHeight, ebiten.FilterDefault)
 	if err != nil {
@@ -152,10 +160,11 @@ func newMapTMXFromFile(filePath string) mapXML {
 	return mapRaw
 }
 
+// parseIntCSV converts the data string in a TMX layer into []uint32
 func parseIntCSV(csv string) []uint32 {
 	strs := strings.Split(csv, ",")
 	ints := make([]uint32, len(strs))
-	var fatInt uint64 // what
+	var fatInt uint64 // ParseUint returns uint64, cast later
 	var err error
 	for i := range ints {
 		fatInt, err = strconv.ParseUint(strs[i], 10, 32)
@@ -167,6 +176,7 @@ func parseIntCSV(csv string) []uint32 {
 	return ints
 }
 
+// NewMapFromTMX returns a Map given a .tmx map file
 func NewMapFromTMX(filePath string) *Map {
 	var err error
 	newMap := Map{}
