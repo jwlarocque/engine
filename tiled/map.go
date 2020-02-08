@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -39,14 +40,14 @@ func getTileImageAndOpts(newMap *Map, tileNum int) (*ebiten.Image, *ebiten.DrawI
 	(fmt.Sprintf("ID: %d, H: %t, V: %t, D: %t", localID, flipHoriz, flipVert, flipDiag)) // TODO: remove this
 	img := newMap.Tileset.GetTileImage(int(localID))
 	opts.GeoM.Translate(-float64(newMap.Tileset.tileWidth)/2, -float64(newMap.Tileset.tileHeight)/2)
+	if flipDiag {
+		opts.GeoM.Rotate(0.5 * math.Pi)
+	}
 	if flipHoriz {
 		opts.GeoM.Scale(-1, 1)
 	}
 	if flipVert {
 		opts.GeoM.Scale(1, -1)
-	}
-	if flipDiag {
-		opts.GeoM.Scale(-1, -1)
 	}
 	opts.GeoM.Translate(float64((tileNum%newMap.width)*newMap.Tileset.tileWidth), float64((tileNum/newMap.width)*newMap.Tileset.tileHeight))
 	opts.GeoM.Translate(float64(newMap.Tileset.tileWidth)/2, float64(newMap.Tileset.tileHeight)/2)
