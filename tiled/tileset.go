@@ -14,12 +14,27 @@ import (
 	"github.com/hajimehoshi/ebiten/ebitenutil"
 )
 
+// TODO: construct file paths relative to current file instead of main.go
+
+// Tileset provides tile images, usually to a Map
 type Tileset struct {
 	tilesImage *ebiten.Image
 	tileWidth  int
 	tileHeight int
 	numTiles   int
 	numCols    int
+}
+
+// GetTileImage takes a tile ID and returns the corresponding ebiten.Image
+// from its tileset
+// NOTE: the global tile ID in a .tmx file and local ID used by the
+//       tileset are generally not the same.  It is up to you to do
+//       the conversion.
+// TODO: consider returning render opts? (would probably require global ID)
+func (ts Tileset) GetTileImage(localTileID int) *ebiten.Image {
+	subX := (localTileID % ts.numCols) * ts.tileWidth
+	subY := (localTileID / ts.numCols) * ts.tileHeight
+	return ts.tilesImage.SubImage(image.Rect(subX, subY, subX+ts.tileWidth, subY+ts.tileWidth)).(*ebiten.Image)
 }
 
 // == JSON ========
@@ -33,6 +48,7 @@ type tilesetJSON struct {
 	NumCols    int `json:"columns"`
 }
 
+// newTilesetJSONFromFile unmarshals the given .json tileset file into a tilesetJSON
 func newTilesetJSONFromFile(filePath string) tilesetJSON {
 	jsonFile, err := os.Open(filePath)
 	if err != nil {
@@ -48,6 +64,7 @@ func newTilesetJSONFromFile(filePath string) tilesetJSON {
 	return tileset
 }
 
+// NewTilesetFromJSON returns a Tileset from the given Tiled .json tileset file
 func NewTilesetFromJSON(filePath string) *Tileset {
 	tileset := Tileset{}
 
@@ -63,7 +80,6 @@ func NewTilesetFromJSON(filePath string) *Tileset {
 		log.Fatal(err)
 	}
 
-	// ¯\_(ツ)_/¯
 	tileset.tileHeight = json.TileHeight
 	tileset.tileWidth = json.TileWidth
 	tileset.numTiles = json.NumTiles
@@ -87,7 +103,7 @@ type imageXML struct {
 	FilePath string   `xml:"source,attr"`
 }
 
-// NewTSXFromFile parses the given .tsx file into a tilsetXML
+// newTSXFromFile unmarshals the given .tsx file into a tilsetXML
 func newTSXFromFile(filePath string) tilesetXML {
 	tsxFile, err := os.Open(filePath)
 	if err != nil {
@@ -114,7 +130,6 @@ func NewTilesetFromTSX(filePath string) *Tileset {
 
 	// TODO: reduce repeated code
 	var err error
-	// TODO: construct file paths relative to .tsx file instead of this file
 	tileset.tilesImage, _, err = ebitenutil.NewImageFromFile(tsx.Images[0].FilePath, ebiten.FilterDefault)
 	if err != nil {
 		log.Fatal(err)
@@ -138,16 +153,4 @@ func NewTilesetFromTSX(filePath string) *Tileset {
 	}
 
 	return &tileset
-}
-
-// GetTileImage takes a tile ID and returns the corresponding ebiten.Image
-// from its tileset
-// !!! NOTE: the global tile ID in a .tmx file and local ID used by the
-//           tileset are generally not the same.  It is up to you to do
-//           the conversion. !!!
-// TODO: consider returning render opts? (would probably require global ID)
-func (ts Tileset) GetTileImage(localTileID int) *ebiten.Image {
-	subX := (localTileID % ts.numCols) * ts.tileWidth
-	subY := (localTileID / ts.numCols) * ts.tileHeight
-	return ts.tilesImage.SubImage(image.Rect(subX, subY, subX+ts.tileWidth, subY+ts.tileWidth)).(*ebiten.Image)
 }
