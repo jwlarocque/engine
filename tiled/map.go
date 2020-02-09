@@ -10,14 +10,18 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/golang/geo/r2"
+
 	"github.com/hajimehoshi/ebiten"
-	"github.com/jwlarocque/engine/mechanism"
-	"github.com/jwlarocque/engine/r2"
+
+	"github.com/jwlarocque/engine/mech"
+	"github.com/jwlarocque/engine/r2extra"
 )
 
 // Tiled JSON Format: https://doc.mapeditor.org/en/stable/reference/json-map-format/
 // Tiled TMX Format: https://doc.mapeditor.org/en/stable/reference/tmx-map-format/
 //
+// TODO: move colliders to level.go (in package engine)
 // TODO: reduce use of log.Fatal
 
 // Map represents the data about a level which can be found in a Tiled file
@@ -26,14 +30,14 @@ import (
 type Map struct {
 	Image            *ebiten.Image
 	Tileset          *Tileset
-	terrainColliders []*mechanism.Collider
+	terrainColliders []*mech.Collider
 	tileData         []uint32
 	width            int // map width in tiles
 	height           int // map height in tiles
 }
 
-func getTilePos(m *Map, tileNum int) r2.Vector {
-	return r2.Vector{float64((tileNum % m.width) * m.Tileset.tileWidth), float64((tileNum / m.width) * m.Tileset.tileHeight)}
+func getTilePos(m *Map, tileNum int) r2.Point {
+	return r2.Point{float64((tileNum % m.width) * m.Tileset.tileWidth), float64((tileNum / m.width) * m.Tileset.tileHeight)}
 }
 
 // TODO: clean this up
@@ -51,7 +55,7 @@ func getTileImageAndOpts(newMap *Map, tileNum int) (*ebiten.Image, *ebiten.DrawI
 	// apply tile flips/rotatoin
 	opts.GeoM.Translate(-float64(newMap.Tileset.tileWidth)/2, -float64(newMap.Tileset.tileHeight)/2)
 	if flipDiag {
-		opts.GeoM = r2.RotatedQuarter(opts.GeoM)
+		opts.GeoM = r2extra.RotatedQuarter(opts.GeoM)
 	}
 	if flipHoriz {
 		opts.GeoM.Scale(-1, 1)
@@ -60,7 +64,8 @@ func getTileImageAndOpts(newMap *Map, tileNum int) (*ebiten.Image, *ebiten.DrawI
 		opts.GeoM.Scale(1, -1)
 	}
 	// translate to position relative to rest of map
-	opts.GeoM.Translate(getTilePos(newMap, tileNum).XY())
+	tilePos := getTilePos(newMap, tileNum)
+	opts.GeoM.Translate(tilePos.X, tilePos.Y)
 	opts.GeoM.Translate(float64(newMap.Tileset.tileWidth)/2, float64(newMap.Tileset.tileHeight)/2)
 
 	img := newMap.Tileset.GetTileImage(int(localID))
@@ -71,7 +76,7 @@ func (m *Map) addCollidersFromTiledata() {
 	for i := 0; i < len(m.tileData); i++ {
 		localID := (m.tileData[i] & 0x1FFFFFFF) - 1
 		if localID > 0 {
-			coll, err := mechanism.NewCollider([]*r2.Vector{{0.0, 0.0}, {float64(m.Tileset.tileWidth), 0.0}, {float64(m.Tileset.tileWidth), float64(m.Tileset.tileHeight)}, {0.0, float64(m.Tileset.tileHeight)}})
+			coll, err := mech.NewCollider([]*r2.Point{{0.0, 0.0}, {float64(m.Tileset.tileWidth), 0.0}, {float64(m.Tileset.tileWidth), float64(m.Tileset.tileHeight)}, {0.0, float64(m.Tileset.tileHeight)}})
 			if err != nil {
 				log.Fatal(err)
 			}

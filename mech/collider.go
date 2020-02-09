@@ -3,30 +3,31 @@
  *       Consider removing center (of bounding box) - it's currently unused.
  */
 
-package mechanism
+package mech
 
 import (
 	"fmt"
 
-	"github.com/jwlarocque/engine/r2"
+	"github.com/golang/geo/r2"
+	"github.com/jwlarocque/engine/r2extra"
 )
 
 // Collider has Vertices and an Entity to keep track of its position in the level.
 // It can determine whether it is intersecting/overlapping with another Collider.
 // Note: Vertices must form a convex polygon (do not repeat first/last vertex).
 type Collider struct {
-	Vertices             []*r2.Vector
-	center               r2.Vector // middle of bounding box
-	boundSmall, boundBig r2.Vector // bounding box
-	Position             r2.Vector
-	Velocity             r2.Vector
+	Vertices             []*r2.Point
+	center               r2.Point // middle of bounding box
+	boundSmall, boundBig r2.Point // bounding box
+	Position             r2.Point
+	Velocity             r2.Point
 }
 
 // isConvex returns whether the given vertices form a convex polygon
 // does not handle wack polygons (e.g. self-intersecting)
 // FIXME: handle case where two adjacent segments are parallel (i.e., Cross ~= 0) (should always pass)
 // FIXME: I don't know how Collides will handle colliders with fewer than 4 vertices
-func isConvex(vertices []*r2.Vector) bool {
+func isConvex(vertices []*r2.Point) bool {
 	// triangles, "lines," and "points" are convex
 	if len(vertices) <= 3 {
 		return true
@@ -51,7 +52,7 @@ func isConvex(vertices []*r2.Vector) bool {
 // ErrNotConvex is returned by NewCollider when the provided vertices are not convex
 type ErrNotConvex struct {
 	ErrStr   string
-	Vertices []*r2.Vector
+	Vertices []*r2.Point
 }
 
 func (e *ErrNotConvex) Error() string {
@@ -59,7 +60,7 @@ func (e *ErrNotConvex) Error() string {
 }
 
 // NewCollider constructs a new Collider from the provided vertices
-func NewCollider(vertices []*r2.Vector) (*Collider, error) {
+func NewCollider(vertices []*r2.Point) (*Collider, error) {
 	if !isConvex(vertices) {
 		return nil, &ErrNotConvex{"Collider vertices were not convex.", vertices}
 	}
@@ -83,13 +84,13 @@ func NewCollider(vertices []*r2.Vector) (*Collider, error) {
 	}
 
 	// find center of bounding box
-	coll.center = coll.boundSmall.Add((coll.boundBig.Sub(coll.boundSmall)).Scale(0.5))
+	coll.center = coll.boundSmall.Add((coll.boundBig.Sub(coll.boundSmall)).Mul(0.5))
 	return &coll, nil
 }
 
 // GetVertexPos returns the position of the vertex at i (% len(vertices))
 // plus the Collider's position
-func (c *Collider) GetVertexPos(i int) r2.Vector {
+func (c *Collider) GetVertexPos(i int) r2.Point {
 	return c.Vertices[i%len(c.Vertices)].Add(c.Position)
 }
 
@@ -129,16 +130,16 @@ func (c *Collider) bBoxCollides(other *Collider) bool {
 //       && with other.satCollides(c) - combine into single call
 func (c *Collider) satCollides(other *Collider) bool {
 	// check each side of this Collider (c)
-	var axis r2.Vector
+	var axis r2.Point
 	var current, cMin, cMax, otherMin, otherMax float64
 	for i := 0; i < len(c.Vertices); i++ {
 		// axis is ortho to a side of c
-		axis = c.GetVertexPos(i).Sub(c.GetVertexPos(i + 1)).Orthogonal()
+		axis = c.GetVertexPos(i).Sub(c.GetVertexPos(i + 1)).Ortho()
 		// find projection/"shadow" of c onto axis
-		cMin = c.GetVertexPos(0).ProjectOntoMagnitude(axis)
+		cMin = r2extra.ProjectOntoMagnitude(c.GetVertexPos(0), axis)
 		cMax = cMin
 		for j := 1; j < len(c.Vertices); j++ {
-			current = c.GetVertexPos(j).ProjectOntoMagnitude(axis)
+			current = r2extra.ProjectOntoMagnitude(c.GetVertexPos(j), axis)
 			if current > cMax {
 				cMax = current
 			} else if current < cMin {
@@ -147,10 +148,10 @@ func (c *Collider) satCollides(other *Collider) bool {
 		}
 
 		// do the same for other
-		otherMin = other.GetVertexPos(0).ProjectOntoMagnitude(axis)
+		otherMin = r2extra.ProjectOntoMagnitude(other.GetVertexPos(0), axis)
 		otherMax = otherMin
 		for j := 1; j < len(other.Vertices); j++ {
-			current = other.GetVertexPos(j).ProjectOntoMagnitude(axis)
+			current = r2extra.ProjectOntoMagnitude(other.GetVertexPos(j), axis)
 			if current > otherMax {
 				otherMax = current
 			} else if current < otherMin {

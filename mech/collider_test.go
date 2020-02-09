@@ -1,25 +1,26 @@
-package mechanism
+package mech
 
 import (
 	"image/color"
 	"log"
 	"testing"
 
+	"github.com/golang/geo/r2"
+
 	"github.com/hajimehoshi/ebiten"
 	"github.com/hajimehoshi/ebiten/ebitenutil"
-	"github.com/jwlarocque/engine/r2"
 )
 
 func Test_isConvex(t *testing.T) {
 	var convex bool
 	// square, expect convex = true
-	convex = isConvex([]*r2.Vector{{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}})
+	convex = isConvex([]*r2.Point{{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}})
 	if !convex {
 		t.Errorf("isConvex (square): expected true, got false!")
 	}
 
 	// chevron, expect convex = false
-	convex = isConvex([]*r2.Vector{{1.0, 0.0}, {2.0, 2.0}, {1.0, 1.0}, {0.0, 2.0}})
+	convex = isConvex([]*r2.Point{{1.0, 0.0}, {2.0, 2.0}, {1.0, 1.0}, {0.0, 2.0}})
 	if convex {
 		t.Errorf("isConvex (chevron): expected false, got true!")
 	}
@@ -39,7 +40,7 @@ func collidersInteractiveUpdate(screen *ebiten.Image) error {
 }
 
 func Test_CollidersInteractive(t *testing.T) {
-	diamCollider, err := NewCollider([]*r2.Vector{{10.0, 10.0}, {50.0, 50.0}})
+	diamCollider, err := NewCollider([]*r2.Point{{10.0, 10.0}, {50.0, 50.0}})
 	if err != nil {
 		log.Fatal((err))
 	}
