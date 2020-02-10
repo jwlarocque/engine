@@ -30,7 +30,7 @@ import (
 type Map struct {
 	Image            *ebiten.Image
 	Tileset          *Tileset
-	terrainColliders []*mech.Collider
+	terrainColliders []*mech.PolyCollider
 	tileData         []uint32
 	width            int // map width in tiles
 	height           int // map height in tiles
@@ -76,7 +76,7 @@ func (m *Map) addCollidersFromTiledata() {
 	for i := 0; i < len(m.tileData); i++ {
 		localID := (m.tileData[i] & 0x1FFFFFFF) - 1
 		if localID > 0 {
-			coll, err := mech.NewCollider([]*r2.Point{{0.0, 0.0}, {float64(m.Tileset.tileWidth), 0.0}, {float64(m.Tileset.tileWidth), float64(m.Tileset.tileHeight)}, {0.0, float64(m.Tileset.tileHeight)}})
+			coll, err := mech.NewPolyCollider([]*r2.Point{{0.0, 0.0}, {float64(m.Tileset.tileWidth), 0.0}, {float64(m.Tileset.tileWidth), float64(m.Tileset.tileHeight)}, {0.0, float64(m.Tileset.tileHeight)}})
 			if err != nil {
 				log.Fatal(err)
 			}

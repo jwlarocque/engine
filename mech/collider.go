@@ -7,20 +7,34 @@ package mech
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/golang/geo/r2"
 	"github.com/jwlarocque/engine/r2extra"
 )
 
-// Collider has Vertices and an Entity to keep track of its position in the level.
-// It can determine whether it is intersecting/overlapping with another Collider.
+type Collider interface {
+	Collides(other Collider) bool
+}
+
+// == Axis Aligned Box Collider =========
+
+type AABBCollider struct {
+	center               r2.Point // middle of bounding box
+	boundSmall, boundBig r2.Point // bounding box
+	Body
+}
+
+// == Convex Polygon Collider ========
+
+// PolyCollider has Vertices and an Entity to keep track of its position in the level.
+// It can determine whether it is intersecting/overlapping with another PolyCollider.
 // Note: Vertices must form a convex polygon (do not repeat first/last vertex).
-type Collider struct {
+type PolyCollider struct {
 	Vertices             []*r2.Point
 	center               r2.Point // middle of bounding box
 	boundSmall, boundBig r2.Point // bounding box
-	Position             r2.Point
-	Velocity             r2.Point
+	Body
 }
 
 // isConvex returns whether the given vertices form a convex polygon
@@ -49,7 +63,7 @@ func isConvex(vertices []*r2.Point) bool {
 	return true
 }
 
-// ErrNotConvex is returned by NewCollider when the provided vertices are not convex
+// ErrNotConvex is returned by NewPolyCollider when the provided vertices are not convex
 type ErrNotConvex struct {
 	ErrStr   string
 	Vertices []*r2.Point
@@ -59,12 +73,12 @@ func (e *ErrNotConvex) Error() string {
 	return fmt.Sprintf("%s : %v", e.ErrStr, e.Vertices)
 }
 
-// NewCollider constructs a new Collider from the provided vertices
-func NewCollider(vertices []*r2.Point) (*Collider, error) {
+// NewPolyCollider constructs a new PolyCollider from the provided vertices
+func NewPolyCollider(vertices []*r2.Point) (*PolyCollider, error) {
 	if !isConvex(vertices) {
-		return nil, &ErrNotConvex{"Collider vertices were not convex.", vertices}
+		return nil, &ErrNotConvex{"PolyCollider vertices were not convex.", vertices}
 	}
-	coll := Collider{}
+	coll := PolyCollider{}
 	coll.Vertices = vertices
 
 	// find bounding box
@@ -89,30 +103,20 @@ func NewCollider(vertices []*r2.Point) (*Collider, error) {
 }
 
 // GetVertexPos returns the position of the vertex at i (% len(vertices))
-// plus the Collider's position
-func (c *Collider) GetVertexPos(i int) r2.Point {
+// plus the PolyCollider's position
+func (c PolyCollider) GetVertexPos(i int) r2.Point {
 	return c.Vertices[i%len(c.Vertices)].Add(c.Position)
 }
 
-func (c *Collider) String() string {
-	return fmt.Sprintf("Collider with center: %v, Bounds: (%v, %v), Vertices: %v", c.center, c.boundSmall, c.boundBig, c.Vertices)
-}
-
-//
-// == Time Blur ========
-
-// Blur "streches" a collider from its current position to its
-// position after time
-// !!! Creates a new collider.  Use sparingly. !!!
-func (c Collider) Blur(time float64) Collider {
-	return Collider{}
+func (c PolyCollider) String() string {
+	return fmt.Sprintf("PolyCollider with center: %v, Bounds: (%v, %v), Vertices: %v", c.center, c.boundSmall, c.boundBig, c.Vertices)
 }
 
 //
 // == Collision Detection ========
 
 // checks for bounding box collision
-func (c *Collider) bBoxCollides(other *Collider) bool {
+func (c PolyCollider) bBoxCollides(other PolyCollider) bool {
 	// TODO: this is dumb, write cleaner way
 	cS := c.boundSmall.Add(c.Position)
 	cB := c.boundBig.Add(c.Position)
@@ -128,8 +132,8 @@ func (c *Collider) bBoxCollides(other *Collider) bool {
 // idea: https://www.sevenson.com.au/actionscript/sat/
 // TODO: Only checks edges of c as separating line, so must
 //       && with other.satCollides(c) - combine into single call
-func (c *Collider) satCollides(other *Collider) bool {
-	// check each side of this Collider (c)
+func (c PolyCollider) satCollides(other PolyCollider) bool {
+	// check each side of this PolyCollider (c)
 	var axis r2.Point
 	var current, cMin, cMax, otherMin, otherMax float64
 	for i := 0; i < len(c.Vertices); i++ {
@@ -167,21 +171,41 @@ func (c *Collider) satCollides(other *Collider) bool {
 	return true
 }
 
-// Collides returns whether this Collider intersects with the other Collider
-func (c *Collider) Collides(other *Collider) bool {
-	// check bounding box intersection
-	if !c.bBoxCollides(other) {
+// Collides returns whether this PolyCollider intersects with the other Collider
+func (poly PolyCollider) Collides(other Collider) bool {
+	switch other.(type) {
+	case PolyCollider:
+		otherPoly, ok := other.(PolyCollider)
+		if !ok {
+			log.Fatal("Collider type assertion to PolyCollider failed?!")
+		}
+		// check bounding box intersection
+		if !poly.bBoxCollides(otherPoly) {
+			return false
+		}
+		// check for gaps with separating axis theorem
+		// note: satCollides only considers the axes of c, so just and the results together to consider both
+		return poly.satCollides(otherPoly) && otherPoly.satCollides(poly)
+	default:
+		log.Fatal("fixme")
 		return false
 	}
-	// check for gaps with separating axis theorem
-	// note: satCollides only considers the axes of c, so just and the results together to consider both
-	return c.satCollides(other) && other.satCollides(c)
 }
 
 // WillCollide returns whether c and other _are_ colliding after timeSteps
 // assumes collider moves exactly velocity every time step (i.e., a time step is one unit of time)
-func (c Collider) WillCollide(other Collider, timeSteps int) bool {
-	c.Position.Add(c.Velocity)
-	other.Position.Add(other.Velocity)
-	return c.Collides(&other)
+func (poly PolyCollider) WillCollide(other Collider, timeSteps int) bool {
+	switch other.(type) {
+	case PolyCollider:
+		otherPoly, ok := other.(PolyCollider)
+		if !ok {
+			log.Fatal("Collider type assertion to PolyCollider failed?!")
+		}
+		poly.Position.Add(poly.Velocity)
+		otherPoly.Position.Add(otherPoly.Velocity)
+		return poly.Collides(otherPoly)
+	default:
+		log.Fatal("fixme")
+		return false
+	}
 }
